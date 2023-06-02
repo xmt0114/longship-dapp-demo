@@ -42,3 +42,8 @@ if (result) {
   console.log('verify signature failed');
 }
 ```
+
+## Paymaster
+![流程图](./paymaster.png)
+
+当前项目在本地启动时使用paymaster有跨域问题，可前往[线上demo](https://wallet-demo.blockservice.io/dapp-demo)体验

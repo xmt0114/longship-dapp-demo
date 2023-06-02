@@ -14,7 +14,7 @@ import JSONInput from 'react-json-editor-ajrm';
 import locale from 'react-json-editor-ajrm/locale/en';
 import { eip712DemoData, CHAIN_CONFIGS, paymaster, token, EOA } from "../config";
 import { SiweMessage } from 'siwe';
-import { getServerSignature } from "../server";
+import { getServerSignature, getPaymasterAndData } from "../server";
 import { searchERC721TokenId, searchERC1155TokenId } from "@/utils/utils";
 
 const { Sider, Content } = Layout;
@@ -381,9 +381,9 @@ const { TextArea } = Input;
                                     const params = {
                                         ...values,
                                         paymasterOptions: {
-                                            address: paymaster.address,
-                                            validUntil: paymaster.validUntil,
-                                            validAfter: paymaster.validAfter,
+                                            // address: paymaster.address,
+                                            // validUntil: paymaster.validUntil,
+                                            // validAfter: paymaster.validAfter,
                                             callback: 'confirmSign',
                                         }
                                     }
@@ -396,7 +396,13 @@ const { TextArea } = Input;
                                                 },
                                                 onOk: async () => {
                                                     const sig = await getServerSignature(op);
-                                                    resolve(sig)
+                                                    const paymasterAndData = getPaymasterAndData(
+                                                        paymaster.address,
+                                                        paymaster.validUntil,
+                                                        paymaster.validAfter,
+                                                        sig,
+                                                    );
+                                                    resolve(paymasterAndData);
                                                 },
                                             })
                                         })
