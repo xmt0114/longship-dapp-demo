@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import { LongshipSDK, EIP1271 } from 'able-wallet-core';
+import { LongshipSDK, EIP1271, LSPaymasterMode } from 'able-wallet-core';
 import { Form, Input, message, Select, Modal } from "antd";
 import { ethers } from "ethers";
 import styles from './index.less';
@@ -202,17 +202,11 @@ const { TextArea } = Input;
          };
          try {
              const res = await longshipWallet.sendTransaction({
-                 from: account.wallet_address,
-                 to: e.address,
-                 value: e.amount,
-                 data: '0x',
-                 info: {
-                     type: 'ETH',
-                     to: e.address,
-                     amount: e.amount,
-                     name: 'eth'
-                 },
-                 paymasterOptions: e.paymasterOptions,
+                from: account.wallet_address,
+                to: e.address,
+                value: e.amount,
+                data: '0x',
+                paymasterOptions: e.paymasterOptions,
              })
              if (res === 'transfer success') {
                  message.success(res);
@@ -241,12 +235,6 @@ const { TextArea } = Input;
                  to: e.contractAddress,
                  value: '0x0',
                  data: callData,
-                 info: {
-                     type: 'ERC20',
-                     to: e.address,
-                     amount: e.amount,
-                     name: 'usdmc'
-                 }
              });
              if (res === 'transfer success') {
                  message.success(res);
@@ -269,12 +257,6 @@ const { TextArea } = Input;
                  to: e.contractAddress,
                  value: '0x0',
                  data: callData,
-                 info: {
-                     type: 'ERC721',
-                     to: e.address,
-                     tokenId: e.tokenId,
-                     name: 'erc721'
-                 }
              });
              if (res === 'transfer success') {
                  message.success(res);
@@ -297,13 +279,6 @@ const { TextArea } = Input;
                  to: e.contractAddress,
                  value: '0x0',
                  data: callData,
-                 info: {
-                     type: 'ERC1155',
-                     to: e.address,
-                     amount: e.amount,
-                     tokenId: e.tokenId,
-                     name: 'erc1155'
-                 }
              });
              if (res === 'transfer success') {
                  message.success(res);
@@ -381,33 +356,10 @@ const { TextArea } = Input;
                                     const params = {
                                         ...values,
                                         paymasterOptions: {
-                                            // address: paymaster.address,
-                                            // validUntil: paymaster.validUntil,
-                                            // validAfter: paymaster.validAfter,
-                                            callback: 'confirmSign',
+                                            mode: 1,
+                                            extraData: JSON.stringify({ uid: '123' })
                                         }
                                     }
-                                    const confirmSign = (op) => {
-                                        return new Promise((resolve, reject) => {
-                                            return Modal.confirm({
-                                                title: '确认签名？',
-                                                onCancel: () => {
-                                                    reject('user cancel');
-                                                },
-                                                onOk: async () => {
-                                                    const sig = await getServerSignature(op);
-                                                    const paymasterAndData = getPaymasterAndData(
-                                                        paymaster.address,
-                                                        paymaster.validUntil,
-                                                        paymaster.validAfter,
-                                                        sig,
-                                                    );
-                                                    resolve(paymasterAndData);
-                                                },
-                                            })
-                                        })
-                                    }
-                                    window.confirmSign = confirmSign;
                                     onSubmit(params, sendETH);
                                  }}>
                                      Send With Paymaster
@@ -704,7 +656,7 @@ const { TextArea } = Input;
                      </div>
                  </Content>
                  <Sider width={360} className={styles.contentRight} theme="light">
-                     {
+                     {/* {
                          !account && (
                              <>
                                  <h2>Networks</h2>
@@ -715,7 +667,7 @@ const { TextArea } = Input;
                                  />
                              </>
                          )
-                     }
+                     } */}
                      <h2>{account ? 'Wallet Information' : 'Login Methods'}</h2>
                      {
                          account && (
@@ -745,18 +697,16 @@ const { TextArea } = Input;
 
                      <Button type="primary" style={{marginTop: 12, width: 240}} onClick={async () => {
                          if (account) {
-                             setAccount(undefined);
-                             localStorage.removeItem('LSAC');
+                            try {
+                                await longshipWallet.logout()
+                                setAccount(undefined);
+                                localStorage.removeItem('LSAC');
+                            } catch (e) {
+                                message.error(e+'')
+                            }
                          } else {
                              try {
-                                 const res = await longshipWallet.login({
-                                     eventListener: (event: any) => {
-                                         console.log("event", event);
-                                         message.info(
-                                             'eventListener'
-                                         )
-                                     },
-                                 })
+                                 const res = await longshipWallet.login()
                                  setAccount(res);
                              } catch (e) {
                                  message.error(e+'')

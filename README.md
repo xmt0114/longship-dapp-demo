@@ -46,4 +46,20 @@ if (result) {
 ## Paymaster
 ![流程图](./paymaster.png)
 
-当前项目在本地启动时使用paymaster有跨域问题，可前往[线上demo](https://wallet-demo.blockservice.io/dapp-demo)体验
+### 使用paymaster
+```
+try {
+  await longshipWallet.sendTransaction({
+    from: account.wallet_address,
+    to: '0x1111',
+    value: '1',
+    data: '0x',
+    paymasterOptions: {
+      mode: 1, // 1: sponseored by able wallet
+      extraData: JSON.stringify({ uid: '123' })
+    },
+  });
+} catch(e) {
+  console.log(e);
+}
+```
