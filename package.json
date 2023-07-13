@@ -10,7 +10,12 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.1.4",
-    "able-wallet-core": "^0.1.2",
+    "@traitsniper/wallet-sdk": "^0.1.1",
+    "@traitsniper/web3-react-v6-connector": "^0.1.0",
+    "@web3-react/abstract-connector": "^6.0.7",
+    "@web3-react/core": "^6.1.9",
+    "@web3-react/injected-connector": "^6.0.7",
+    "@web3-react/types": "^6.0.7",
     "antd": "^5.5.2",
     "ethers": "^5.7.2",
     "react-copy-to-clipboard": "^5.1.0",

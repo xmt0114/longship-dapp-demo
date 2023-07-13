@@ -1,4 +1,4 @@
-import { MessageTypes, TypedMessage } from "@/longship-wallet-core/src/types";
+import { MessageTypes, TypedMessage } from "@traitsniper/wallet-sdk";
 
 export const eip712DemoData: TypedMessage<MessageTypes> = {
   domain: {
@@ -70,26 +70,3 @@ export const CHAIN_CONFIGS = {
     },
   }
 }
-
-export const paymaster = {
-  address: "0x8ac2d44F2A66c1d354c025fFc71c277F30a88aA3",
-  validUntil: 0,
-  validAfter: 0,
-}
-
-export const token = {
-  USDMCToken: {
-    address: '0x21A2A9Fc5aFEdC8Ed70A071efF25CB6f5A93a412',
-    decimal: 6
-  },
-  // ERC721Address: '0x06694bA4D176696342595a3Be8008B244e55c461',
-  ERC721Address: '0x26f8Ef78826eD6b671Ee12195c3C83dD156C95d5',
-  ERC1155Address: '0x5926b9C2fD0c1b8336DA9a613ebB34581281b269',
-}
-
-export const EOA = {
-  address: '0xfb299eCe9215807944287068Cb7fa443f496b26F',
-  privateKey: '0x025877bbd1c534975e728255e3223a28cc239269f39831799755f62b824669c7',
-}
-
-export const AddressZero = '0x0000000000000000000000000000000000000000';

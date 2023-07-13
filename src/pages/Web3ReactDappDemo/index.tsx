@@ -1,6 +1,6 @@
-import React, {useEffect, useState} from "react";
-import { LongshipSDK, EIP1271 } from '@traitsniper/wallet-sdk';
-import { Form, Input, message, Select, Modal } from "antd";
+import React, {useEffect, useMemo, useState} from "react";
+import { EIP1271 } from '@traitsniper/wallet-sdk';
+import { Form, Input, AutoComplete, message, Modal } from "antd";
 import { ethers } from "ethers";
 import { TransactionResponse } from '@ethersproject/providers';
 import styles from './index.less';
@@ -10,22 +10,26 @@ import {CopyToClipboard} from "react-copy-to-clipboard";
 import {CopyOutlined, DownloadOutlined} from "@ant-design/icons";
 import Erc20Abi from "@/contract/abi/ERC20.json";
 import Erc721Abi from "@/contract/abi/ERC721.json";
-import MyErc721Abi from "@/contract/abi/myERC721.json";
 import Erc1155Abi from "@/contract/abi/ERC1155.json";
 import JSONInput from 'react-json-editor-ajrm';
 import locale from 'react-json-editor-ajrm/locale/en';
-import { eip712DemoData, CHAIN_CONFIGS, paymaster, token, EOA } from "../config";
+import { eip712DemoData } from "@/config";
 import { SiweMessage } from 'siwe';
-import { searchERC721TokenId, searchERC1155TokenId } from "@/utils/utils";
-import erc20Token from "@/erc20Token";
+import erc20Token from '@/erc20Token';
 import { transferERC20 } from "@/utils/faucet";
+import { useWeb3React } from "@web3-react/core";
+import {LongShipConnector} from "@traitsniper/web3-react-v6-connector";
+import MyErc721Abi from "@/contract/abi/myERC721.json";
+import { InjectedConnector } from "@web3-react/injected-connector";
 
 const { Sider, Content } = Layout;
 const { TextArea } = Input;
 
-
 const Dapp: React.FC = () => {
-    const [account, setAccount] = useState<any>(undefined);
+    const { active, library, activate, account, chainId, deactivate } = useWeb3React();
+
+    const [signer, setSigner] = useState<any>(null);
+    const [accountInfo, setAccountInfo] = useState<any>({});
     const [loading, setLoading] = useState<boolean>(false);
     const [sign, setSign] = useState<string>('');
     const [typedData, setTypedData] = useState(eip712DemoData);
@@ -34,21 +38,62 @@ const Dapp: React.FC = () => {
     const [siweMessage, setSiweMessage] = useState<SiweMessage>();
     const [siweResult, setSiweResult] = useState<string>();
     const [balance, setBalance] = useState<string>('');
+    const [connectBy, setConnectBy] = useState<string>('');
     const [USDMCBalance, setUSDMCBalance] = useState<string>('');
     const [networkOptions, setNetworkOptions] = useState<any[]>([]);
     const [erc20TokenList, setERC20TokenList] = useState(erc20Token[networksValue]);
 
-    const longshipWallet = new LongshipSDK({
-        appKey: '2462e054-4233-4ca1-bd79-be9512fc27b9', // 必填，用于区分不同dapp
-        env: 'test', // 必填 test|prod
-        chainType: 'testnet', // 必填，test env支持bsc、testnet, prod env支持bsc
-        // 选填，用于信息展示
-        appSetting: {
-            appName: 'traitsniper',
-            appIcon: 'https://wallet-demo.blockservice.io/static/img/coins/128x128/ETH.png'
+    const erc20ContractOptions = useMemo(() => {
+        return erc20Token[networksValue].map((token) => ({
+            label: token.contract_address,
+            value: token.contract_address
+        }))
+    }, [networksValue]);
+
+    const connect = async () => {
+        const longshipConnector = new LongShipConnector({
+            appKey: '2462e054-4233-4ca1-bd79-be9512fc27b9', // 必填，用于区分不同dapp
+            env: 'test', // 必填 test|prod
+            chainType: 'testnet', // 必填，test env支持bsc、testnet, prod env支持bsc
+            connectType: 'twitter', // 选填， 用于连接时直接通过Twitter登陆
+            // 选填，用于信息展示
+            appSetting: {
+                appName: 'traitsniper',
+                appIcon: 'https://wallet-demo.blockservice.io/static/img/coins/128x128/ETH.png'
+            }
+        });
+        try {
+            await activate(longshipConnector, () => {
+                localStorage.removeItem('currentConnect')
+            }, true);
+            setConnectBy('web3React');
+            localStorage.setItem('currentConnect', 'web3React')
+        } catch (e) {
+            console.error(e);
         }
-    });
-    const ethersProvider = longshipWallet.getProvider();
+    };
+
+    const connectByMetaMask = async () => {
+        const injected = new InjectedConnector({
+            supportedChainIds: [9527]
+        });
+        try {
+            await activate(injected, () => {
+                localStorage.removeItem('currentConnect')
+            }, true);
+            setConnectBy('metamask');
+            localStorage.setItem('currentConnect', 'metamask')
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    const disConnect = () => {
+        deactivate();
+        setSigner(null);
+        setConnectBy('');
+        localStorage.removeItem('currentConnect')
+    }
 
     const [ERC721Form] = Form.useForm();
     const [ERC1155Form] = Form.useForm();
@@ -57,17 +102,7 @@ const Dapp: React.FC = () => {
     const [erc20Form] = Form.useForm();
     const [ethForm] = Form.useForm();
 
-    const chainMap = {
-        9527: 'testnet',
-        97: 'bsc'
-    }
-
     const getChains = async () => {
-        const options = longshipWallet.getNetworks();
-        // setNetworkOptions(options.map(t => ({
-        //     label: t,
-        //     value: t
-        // })))
         setNetworkOptions(['testnet', 'bsc'].map(t => ({
             label: t,
             value: t
@@ -75,21 +110,31 @@ const Dapp: React.FC = () => {
     };
 
     useEffect(() => {
-        const account = longshipWallet.getAccount();
-        if (account) {
-            setAccount(account);
-        }
         getChains();
+        const cache = localStorage.getItem('LSAC');
+        const currentConnect = localStorage.getItem('currentConnect')
+        if (currentConnect === 'web3React' && cache) {
+            connect();
+        } else if (currentConnect === 'metamask') {
+            connectByMetaMask()
+        }
     }, []);
 
     useEffect(() => {
         if (account) {
-            getEthBalance();
-            getUSDMCBalance();
-            // getERC721Balance(account.wallet_address);
-            // getERC1155Balance(account.wallet_address);
+            setAccountInfo(JSON.parse(localStorage.getItem('LSAC')) || {});
         }
-    }, [account])
+        if (library) {
+            setSigner(library.getSigner(account!!));
+
+        }
+        if (account) {
+            getEthBalance();
+        }
+        if(library && chainId && parseInt(chainId, 16) !== 9527) {
+            library.send('wallet_switchEthereumChain', [{ chainId: '0x' + (9527).toString(16) }]);
+        }
+    }, [account, library, chainId]);
 
     useEffect(() => {
         if (account && erc20TokenList.length) {
@@ -97,75 +142,27 @@ const Dapp: React.FC = () => {
         }
     }, [JSON.stringify(erc20TokenList), account]);
 
-    const getAnyToken = async (to: string, amount: string, callBack?: (param?:any) => void, tokenName?: string) => {
-        const messageKey = 'updatable';
-
-        message.open({
-            key: messageKey,
-            type: 'loading',
-            content: 'send ' + (tokenName || 'ETH'),
-            duration: 300,
-        });
-
-        const wallet = new ethers.Wallet(EOA.privateKey, ethersProvider);
-        let tokenId:any;
-        let tx:any;
-        if (tokenName === 'ERC20') {
-            const erc20 = new ethers.Contract(token.USDMCToken.address, Erc20Abi, wallet);
-            const erc20Amount = ethers.utils.parseUnits(amount, token.USDMCToken.decimal);
-            tx = await erc20.transfer(to, erc20Amount);
-        } else if (tokenName === 'ERC721') {
-            const erc721 = new ethers.Contract(token.ERC721Address, Erc721Abi, wallet);
-            tokenId = await searchERC721TokenId();
-            if (!tokenId) return message.error('master account balance not enough')
-            tx = await erc721.transferFrom(EOA.address, to, tokenId);
-        } else if (tokenName === 'ERC1155') {
-            const erc1155 = new ethers.Contract(token.ERC1155Address, Erc1155Abi, wallet);
-            tokenId = await searchERC1155TokenId();
-            if (!tokenId) return message.error('master account balance not enough')
-            tx = await erc1155.safeTransferFrom(EOA.address, to, tokenId, 1, '0x');
-        } else {
-            tx = await wallet.sendTransaction({
-                to: to,
-                value:ethers.utils.parseEther(amount)
-            });
-        }
-
-        const receipt = await tx.wait();
-        message.open({
-            key: messageKey,
-            type: 'success',
-            content: `send success${tokenId ? ' and value has been automatically input' : ''}`,
-            duration: 2,
-        });
-        console.log(receipt);
-        callBack && callBack(tokenId);
-    };
-
     const getEthBalance = async () => {
-        const walletAddress = account.wallet_address;
-        const res = await ethersProvider.getBalance(walletAddress);
+        const res = await library.getBalance(account);
         setBalance(ethers.utils.formatEther(res) || '0');
         return ethers.utils.formatEther(res);
     };
 
-    const getUSDMCBalance = async () => {
-        const walletAddress = account.wallet_address;
-        const erc20 = new ethers.Contract(token.USDMCToken.address, Erc20Abi, ethersProvider);
-        const balance = await erc20.balanceOf(walletAddress);
+    const getUSDMCBalance = async (contract_address:string) => {
+        const erc20 = new ethers.Contract(contract_address, Erc20Abi, library);
+        const balance = await erc20.balanceOf(account);
         const decimals = await erc20.decimals();
         setUSDMCBalance(balance / 10 ** decimals + '');
     };
     const getERC20Balance = async (token: string) => {
-        const walletAddress = account.wallet_address;
-        const erc20 = new ethers.Contract(token, Erc20Abi, ethersProvider);
-        const balance = await erc20.balanceOf(walletAddress);
+        const erc20 = new ethers.Contract(token, Erc20Abi, library);
+        const balance = await erc20.balanceOf(account);
         const decimals = await erc20.decimals();
         return ethers.utils.formatUnits(balance, decimals);
     };
     const erc20Faucet = async (token: string) => {
         message.loading({content: 'sending', duration: 0});
-        const tx = await transferERC20(token, account.wallet_address, 10, ethersProvider);
+        const tx = await transferERC20(token, account, 10, library);
         const receipt = await tx.wait();
         message.destroy();
         message.success('transfer success');
@@ -178,24 +175,9 @@ const Dapp: React.FC = () => {
                 balance,
             }
         }));
+        console.log(list);
         setERC20TokenList(list);
     };
-    const getERC721Balance = async (walletAddress: string) => {
-        const erc721 = new ethers.Contract(token.ERC721Address, Erc721Abi, ethersProvider);
-        const numbers = Number((await erc721.balanceOf(walletAddress)).toString());
-        const tokenIds = [];
-        console.log(await erc721.tokenOfOwnerByIndex(walletAddress, 1));
-        // for (let i = 0; i < numbers; i++) {
-        //     const id = await erc721.tokenOfOwnerByIndex(walletAddress, i+'');
-        //     tokenIds.push(id);
-        // };
-    };
-
-    const getERC1155Balance = async (walletAddress:string) => {
-        const erc1155 = new ethers.Contract(token.ERC1155Address, Erc1155Abi, ethersProvider);
-        const res = await erc1155.balanceOf(walletAddress, '1');
-        console.log(res.toNumber());
-    }
 
     const onSubmit = async (e:any, functionName:(params:any) => void) => {
         if (!account) {
@@ -212,7 +194,7 @@ const Dapp: React.FC = () => {
     const signPersonalMessage = async (e:any) => {
         setLoading(true);
         try {
-            const res = await longshipWallet.signMessage(e.message);
+            const res = await signer.signMessage(e.message);
             message.success('sign success');
             setSign(res);
         } catch (e) {
@@ -224,9 +206,13 @@ const Dapp: React.FC = () => {
 
     const signTypedData = async () => {
         try {
-            const res = await longshipWallet.signTypedData(typedData);
+            const signature = await signer._signTypedData(
+                typedData.domain,
+                typedData.types,
+                typedData.message
+            );
             message.success('sign success');
-            setTypedDataSign(res);
+            setTypedDataSign(signature);
         } catch(e) {
             message.error(e + '');
         } finally {
@@ -236,7 +222,7 @@ const Dapp: React.FC = () => {
     const siweSign = async () => {
         const siweMessage: SiweMessage = new SiweMessage({
             domain: window.location.host,
-            address: account.wallet_address,
+            address: account,
             statement: 'Sign in with Ethereum to the app.',
             uri: window.location.origin,
             version: '1',
@@ -245,7 +231,7 @@ const Dapp: React.FC = () => {
         setSiweMessage(siweMessage);
         const msg = siweMessage.prepareMessage();
         try {
-            const res = await longshipWallet.siweSign(msg);
+            const res = await signer.signMessage(msg);
             setSiweResult(res);
         } catch(e) {
             message.error(e+'');
@@ -259,7 +245,7 @@ const Dapp: React.FC = () => {
         if (receipt.status === 1) {
             // message.success('transfer success');
             Modal.success({
-                title: 'Transfer Success',
+                title: 'Success',
                 content: <>
                     Transaction Hash: <br />
                     {receipt.transactionHash}
@@ -273,78 +259,60 @@ const Dapp: React.FC = () => {
 
     const sendETH = async (e:any) => {
         if (e.amount > balance) {
-            return message.error('Insufficient Balance')
+            //  return message.error('Insufficient Balance')
+        };
+        const txParams = {
+            from: account,
+            to: e.address,
+            value: ethers.utils.parseEther(e.amount),
+            data: "0x",
         };
         try {
-            const res = await longshipWallet.sendTransaction({
-                from: account.wallet_address,
-                to: e.address,
-                value: ethers.utils.parseEther(e.amount).toHexString(),
-                data: '0x',
-                paymasterOptions: e.paymasterOptions,
-            })
-            await handleTransactionResponse(res, getEthBalance);
+            const txResp = await signer.sendTransaction(txParams);
+            await handleTransactionResponse(txResp, getEthBalance);
         } catch (e) {
-            message.error(e + '');
-        }
-    }
-
-    const approveERC20 = async (e) => {
-        const erc20 = new ethers.Contract(e.contractAddress, Erc20Abi, ethersProvider);
-        const balance = await erc20.balanceOf(account.wallet_address);
-        const callData = new ethers.utils.Interface(Erc20Abi).encodeFunctionData(
-            'approve',
-            ['0x981C0774dFf527feBC014084b4d5300483812601', balance]
-        );
-        try {
-            const res = await longshipWallet.sendTransaction({
-                from: account.wallet_address,
-                to: e.contractAddress,
-                value: '0x0',
-                data: callData,
-            });
-            await handleTransactionResponse(res);
-        } catch (e) {
-            message.error(e + '');
+            console.log(e);
+            getEthBalance();
         }
     }
 
     const sendERC20 = async (e:any) => {
-        //  if (e.amount > USDMCBalance) {
-        //      return message.error('Insufficient Balance')
-        //  };
-        const erc20 = new ethers.Contract(e.contractAddress, Erc20Abi, ethersProvider);
+        if (e.amount > USDMCBalance) {
+            //  return message.error('Insufficient Balance')
+        };
+        const erc20 = new ethers.Contract(e.contractAddress, Erc20Abi, library);
         const decimals = await erc20.decimals();
+
         const callData = new ethers.utils.Interface(Erc20Abi).encodeFunctionData(
             'transfer',
             [e.address, ethers.utils.parseUnits(e.amount, decimals)]
         )
         try {
-            const res = await longshipWallet.sendTransaction({
-                from: account.wallet_address,
+            const txResp = await signer.sendTransaction({
+                from: account,
                 to: e.contractAddress,
                 value: '0x0',
                 data: callData,
-                paymasterOptions: e.paymasterOptions,
             });
-            await handleTransactionResponse(res, updateERC20TokenBalance);
+            await handleTransactionResponse(txResp, updateERC20TokenBalance);
         } catch (e) {
+            updateERC20TokenBalance();
             message.error(e + '');
         }
     };
     const sendERC721 = async (e:any) => {
         const callData = new ethers.utils.Interface(Erc721Abi).encodeFunctionData(
             'transferFrom',
-            [account.wallet_address, e.address, e.tokenId]
+            [account, e.address, e.tokenId]
         )
         try {
-            const res = await longshipWallet.sendTransaction({
-                from: account.wallet_address,
+            const txResp = await signer.sendTransaction({
+                from: account,
                 to: e.contractAddress,
                 value: '0x0',
                 data: callData,
             });
-            await handleTransactionResponse(res);
+            await handleTransactionResponse(txResp);
         } catch (e) {
             message.error(e + '');
         }
@@ -353,16 +321,16 @@ const Dapp: React.FC = () => {
     const sendERC1155 = async (e:any) => {
         const callData = new ethers.utils.Interface(Erc1155Abi).encodeFunctionData(
             'safeTransferFrom',
-            [account.wallet_address, e.address, e.tokenId, e.amount, '0x']
+            [account, e.address, e.tokenId, e.amount, '0x']
         )
         try {
-            const res = await longshipWallet.sendTransaction({
-                from: account.wallet_address,
+            const txResp = await signer.sendTransaction({
+                from: account,
                 to: e.contractAddress,
                 value: '0x0',
                 data: callData,
             });
-            await handleTransactionResponse(res);
+            await handleTransactionResponse(txResp);
         } catch (e) {
             message.error(e + '');
         }
@@ -381,28 +349,35 @@ const Dapp: React.FC = () => {
     };
 
     const updateConfig = (e:'bsc'|'testnet') => {
-        longshipWallet.updateConfig({
+        signer.updateConfig({
             chainType: e,
         });
     };
 
+    const approveERC20 = async (e:any) => {
+        const erc20 = new ethers.Contract(e.contractAddress, Erc20Abi, signer);
+        const balance = await erc20.balanceOf(account);
+        const spenderAddress = e.spender || '0x981C0774dFf527feBC014084b4d5300483812601'; // Address of the spender
+
+        try {
+            const tx = await erc20.approve(spenderAddress, balance);
+            // tx && tx.wait && await tx.wait();
+            await handleTransactionResponse(tx);
+        } catch (e) {
+            message.error(e + '');
+        }
+    };
 
     const mintERC721 = async (e) => {
         if (!e.address || !e.tokenId || !e.contractAddress) {
             return message.error('please enter all');
         }
-        const callData = new ethers.utils.Interface(MyErc721Abi).encodeFunctionData(
-            'mint',
-            [e.address, e.tokenId]
-        );
+        const erc721 = new ethers.Contract(e.contractAddress, MyErc721Abi, signer);
+
         try {
-            const res = await longshipWallet.sendTransaction({
-                from: account.wallet_address,
-                to: e.contractAddress,
-                value: '0x0',
-                data: callData,
-            });
-            await handleTransactionResponse(res);
+            const tx = await erc721.mint(e.address, e.tokenId);
+            // tx && tx.wait && await tx.wait();
+            await handleTransactionResponse(tx);
         } catch (e) {
             message.error(e + '');
         }
@@ -443,7 +418,6 @@ const Dapp: React.FC = () => {
                                 <Input />
                             </Form.Item>
 
-
                             <Form.Item>
                                 <Button type="primary" htmlType="submit">
                                     Send
@@ -455,7 +429,10 @@ const Dapp: React.FC = () => {
                         <h4>Send ERC20 Token</h4>
                         <Form
                             name="erc20"
-                            initialValues={{ remember: true }}
+                            initialValues={{ 
+                                spender: '0x981C0774dFf527feBC014084b4d5300483812601',
+                                contractAddress: erc20ContractOptions[0].value
+                            }}
                             onFinish={e => onSubmit(e, sendERC20)}
                             autoComplete="off"
                             form={erc20Form}
@@ -472,10 +449,13 @@ const Dapp: React.FC = () => {
                             <Form.Item
                                 label="Contract address"
                                 name="contractAddress"
-                                initialValue={erc20TokenList[0].contract_address}
                                 rules={[{ required: true, message: 'Please input contract address!' }]}
                             >
-                                <Input />
+                                <AutoComplete
+                                    options={erc20ContractOptions}
+                                >
+                                    <Input />
+                                </AutoComplete>
                             </Form.Item>
 
                             <Form.Item
@@ -485,13 +465,23 @@ const Dapp: React.FC = () => {
                             >
                                 <Input />
                             </Form.Item>
-
+                            <Form.Item label="approve spender" name="spender">
+                                <AutoComplete
+                                    options={[...erc20ContractOptions, {
+                                        label: '0x981C0774dFf527feBC014084b4d5300483812601',
+                                        value: '0x981C0774dFf527feBC014084b4d5300483812601',
+                                    }]}
+                                >
+                                    <Input />
+                                </AutoComplete>
+                            </Form.Item>
 
                             <Form.Item>
                                 <Button type="primary" htmlType="submit">
                                     Send
                                 </Button>
-                                <Button style={{ marginLeft: 12}} type="primary" onClick={() => {
+
+                                <Button style={{marginLeft: 20}} type="primary" onClick={() => {
                                     const values = erc20Form.getFieldsValue();
 
                                     onSubmit(values, approveERC20);
@@ -522,7 +512,6 @@ const Dapp: React.FC = () => {
                             <Form.Item
                                 label="Contract address"
                                 name="contractAddress"
-                                initialValue={token.ERC721Address}
                                 rules={[{ required: true, message: 'Please input contract address!' }]}
                             >
                                 <Input />
@@ -571,7 +560,6 @@ const Dapp: React.FC = () => {
                             <Form.Item
                                 label="Contract address"
                                 name="contractAddress"
-                                initialValue={token.ERC1155Address}
                                 rules={[{ required: true, message: 'Please input contract address!' }]}
                             >
                                 <Input />
@@ -636,7 +624,7 @@ const Dapp: React.FC = () => {
                                     sign && (
                                         <Button style={{marginLeft: 24}} type="primary" onClick={async () => {
                                             const msg = personalMsgForm.getFieldValue('message');
-                                            const res = await longshipWallet.isValidSignature(msg, sign);
+                                            const res = await signer.isValidSignature(msg, sign);
                                             if (res) {
                                                 message.success('verify signature success');
                                             } else {
@@ -684,7 +672,7 @@ const Dapp: React.FC = () => {
                                 {
                                     typedDataSign && (
                                         <Button style={{marginLeft: 24}} type="primary" onClick={async () => {
-                                            const res = await longshipWallet.isValidTypedSignature(typedData, typedDataSign);
+                                            const res = await signer.isValidTypedSignature(typedData, typedDataSign);
                                             if (res) {
                                                 message.success('verify signature success');
                                             } else {
@@ -722,7 +710,7 @@ const Dapp: React.FC = () => {
                                         <>
                                             <Button style={{marginLeft: 24}} type="primary" onClick={async () => {
                                                 if (!siweMessage) return;
-                                                const res = await longshipWallet.isValidSignature(siweMessage.prepareMessage(), siweResult);
+                                                const res = await signer.isValidSignature(siweMessage.prepareMessage(), siweResult);
                                                 if (res) {
                                                     message.success('verify signature success');
                                                 } else {
@@ -734,11 +722,11 @@ const Dapp: React.FC = () => {
                                             <Button type="primary" style={{marginLeft: 24}} onClick={async () => {
                                                 if (!siweMessage) return;
                                                 const packedSignature = EIP1271.encodeSignature(
-                                                    account.owner,
+                                                    accountInfo.owner,
                                                     siweResult
                                                 );
                                                 try {
-                                                    const result = await siweMessage.validate(packedSignature, ethersProvider);
+                                                    const result = await siweMessage.validate(packedSignature, library);
                                                     console.log('verify result', result);
                                                     message.success('verify signature success');
                                                 } catch(e) {
@@ -755,27 +743,15 @@ const Dapp: React.FC = () => {
                 </Content>
                 <Sider width={360} className={styles.contentRight} theme="light">
                     <h2>Networks</h2>
-                    {
-                        account ? <p>{networksValue}</p> :
-                            <Select style={{margin: '12px 0', width: 240}}
-                                    options={networkOptions}
-                                    defaultValue={'testnet'}
-                                    value={networksValue}
-                                    onChange={(e: 'bsc' | 'testnet') => {
-                                        setNetworksValue(e);
-                                        setERC20TokenList(erc20Token[e]);
-                                        updateConfig(e)
-                                    }}
-                            />
-                    }
+                    <p>{networksValue}</p>
                     <h2>{account ? 'Wallet Information' : 'Login Methods'}</h2>
                     {
                         account && (
                             <>
                                 <div className={styles.accountWrap}>
-                                    <p>{showOmitAccount(account.wallet_address)}</p>
+                                    <p>{showOmitAccount(account)}</p>
                                     <CopyToClipboard
-                                        text={account.wallet_address}
+                                        text={account}
                                         onCopy={(text: string, result: boolean) => {
                                             if (result) message.success('复制成功')
                                         }}
@@ -788,107 +764,30 @@ const Dapp: React.FC = () => {
                                 {erc20TokenList.map((token) => (
                                     <p key={token.contract_address}>{token.name} Balance: {token.balance || '0'} {token.symbol}</p>
                                 ))}
-                                {account.signature && <div className={styles.signWrap}>
+                                {accountInfo.signature && <div className={styles.signWrap}>
                                   <div className={styles.title}>Sign With Ethereum message</div>
-                                  <TextArea value={account.message} readOnly />
+                                  <TextArea value={accountInfo.message} readOnly />
                                   <div className={styles.title}>Sign With Ethereum Signature</div>
-                                  <TextArea value={account.signature} readOnly />
+                                  <TextArea value={accountInfo.signature} readOnly />
                                 </div>}
                             </>
                         )
                     }
 
-                    <Button type="primary" style={{marginTop: 12, width: 240}} onClick={async () => {
-                        if (account) {
-                            try {
-                                await longshipWallet.logout(true)
-                                setAccount(undefined);
-                                localStorage.removeItem('LSAC');
-                            } catch (e) {
-                                message.error(e+'')
-                            }
-                        } else {
-                            try {
-                                const res = await longshipWallet.login()
-                                setAccount(res);
-                                if (res.chain_id !== networksValue) {
-                                    const chainType: 'testnet' | 'bsc' = chainMap[res.chain_id]
-                                    setNetworksValue(chainType);
-                                    updateConfig(chainType)
-                                }
-                            } catch (e) {
-                                message.error(e+'')
-                            }
-                        }
-                    }}>{
-                        account ? 'Disconnect and Logout' : 'Connect'
-                    }</Button>
-                    {account && <Button type="primary" style={{marginTop: 12, width: 240}} onClick={async () => {
-                        try {
-                            await longshipWallet.logout();
-                            setAccount(undefined);
-                        } catch (e) {
-                            message.error(e+'')
-                        }
-                    }}>Disconnect</Button>}
-                    {!account && <Button style={{marginTop: 12, width: 240}} type="primary" onClick={async () => {
-                        try {
-                            const res = await longshipWallet.login({
-                                authorize: true,
-                            })
-                            setAccount(res);
-                            if (res.chain_id !== networksValue) {
-                                const chainType: 'testnet' | 'bsc' = chainMap[res.chain_id]
-                                setNetworksValue(chainType);
-                                updateConfig(chainType)
-                            }
-                        } catch (e) {
-                            message.error(e+'')
-                        }
-                    }}>
-                      Connect and Auth
-                    </Button>
+                    {
+                        connectBy !== 'metamask' && (
+                            <Button type="primary" style={{marginTop: 12, width: 240}} onClick={
+                                () => account ? disConnect() : connect()}>{
+                                account ? 'Disconnect' : 'Connect by web3-react'
+                            }</Button>
+                        )
                     }
                     {
-                        networksValue === 'testnet' && (
-                            <>
-                                <Button
-                                    onClick={async () => {
-                                        setLoading(true);
-                                        try {
-                                            await getAnyToken(account.wallet_address, '1', getEthBalance);
-                                        } finally {
-                                            setLoading(false);
-                                        }
-                                    }}
-                                    icon={<DownloadOutlined />}
-                                    style={{marginTop: 12, width: 240}}
-                                >ETH Token</Button>
-                                <Button
-                                    onClick={async () => {
-                                        setLoading(true);
-                                        try {
-                                            await getAnyToken(account.wallet_address, '1', inputERC721, 'ERC721')
-                                        } finally {
-                                            setLoading(false);
-                                        }
-                                    }}
-                                    icon={<DownloadOutlined />}
-                                    style={{marginTop: 12, width: 240}}
-                                >ERC721 Token</Button>
-                                <Button
-                                    onClick={async () => {
-                                        setLoading(true);
-                                        try {
-                                            await getAnyToken(account.wallet_address, '1', inputERC1155, 'ERC1155')
-                                        } finally {
-                                            setLoading(false);
-                                        }
-                                    }}
-                                    icon={<DownloadOutlined />}
-                                    style={{marginTop: 12, width: 240}}
-                                >ERC1155 Token</Button>
-                            </>
+                        connectBy !== 'web3React' && (
+                            <Button type="primary" style={{marginTop: 12, width: 240}} onClick={
+                                () => account ? disConnect() : connectByMetaMask()}>{
+                                account ? 'Disconnect' : 'Connect by Metamask'
+                            }</Button>
                         )
                     }
                     {

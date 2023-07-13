@@ -6,6 +6,28 @@
   npm install
   npm run dev
 ```
+## web3-react-v6 使用示例
+### 初始化
+```
+import { LongShipConnector } from "@traitsniper/web3-react-v6-connector";
+
+const longshipConnector = new LongShipConnector({
+    appKey: '2462e054-4233-4ca1-bd79-be9512fc27b9', // 必填，用于区分不同dapp
+    env: 'test', // 必填 test|prod
+    chainType: 'testnet', // 必填，test env支持bsc、testnet, prod env支持bsc
+    connectType: 'twitter', // 选填， 用于连接时直接通过Twitter登陆
+    // 选填，用于信息展示
+    appSetting: {
+        appName: 'traitsniper',
+        appIcon: 'https://wallet-demo.blockservice.io/static/img/coins/128x128/ETH.png'
+    }
+});
+
+const { activate } = useWeb3React();
+
+activate(longshipConnector)
+
+```
 
 ## SDK 使用示例
 
