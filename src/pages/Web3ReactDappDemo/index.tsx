@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import { TransactionResponse } from '@ethersproject/providers';
 import styles from './index.less';
 import { Layout, Button } from 'antd';
-import {showOmitAccount} from "@/utils/utils";
+import {searchERC1155TokenId, searchERC721TokenId, showOmitAccount} from "@/utils/utils";
 import {CopyToClipboard} from "react-copy-to-clipboard";
 import {CopyOutlined, DownloadOutlined} from "@ant-design/icons";
 import Erc20Abi from "@/contract/abi/ERC20.json";
@@ -13,7 +13,7 @@ import Erc721Abi from "@/contract/abi/ERC721.json";
 import Erc1155Abi from "@/contract/abi/ERC1155.json";
 import JSONInput from 'react-json-editor-ajrm';
 import locale from 'react-json-editor-ajrm/locale/en';
-import { eip712DemoData } from "@/config";
+import {eip712DemoData, EOA, token} from "@/config";
 import { SiweMessage } from 'siwe';
 import erc20Token from '@/erc20Token';
 import { transferERC20 } from "@/utils/faucet";
@@ -347,6 +347,51 @@ const Dapp: React.FC = () => {
             amount: 1
         })
     };
+    const getAnyToken = async (to: string, amount: string, callBack?: (param?:any) => void, tokenName?: string) => {
+        const messageKey = 'updatable';
+
+        message.open({
+            key: messageKey,
+            type: 'loading',
+            content: 'send ' + (tokenName || 'ETH'),
+            duration: 300,
+        });
+
+
+        const wallet = new ethers.Wallet(EOA.privateKey, library);
+        let tokenId:any;
+        let tx:any;
+        if (tokenName === 'ERC20') {
+            const erc20 = new ethers.Contract(token.USDMCToken.address, Erc20Abi, wallet);
+            const erc20Amount = ethers.utils.parseUnits(amount, token.USDMCToken.decimal);
+            tx = await erc20.transfer(to, erc20Amount);
+        } else if (tokenName === 'ERC721') {
+            const erc721 = new ethers.Contract(token.ERC721Address, Erc721Abi, wallet);
+            tokenId = await searchERC721TokenId();
+            if (!tokenId) return message.error('master account balance not enough')
+            tx = await erc721.transferFrom(EOA.address, to, tokenId);
+        } else if (tokenName === 'ERC1155') {
+            const erc1155 = new ethers.Contract(token.ERC1155Address, Erc1155Abi, wallet);
+            tokenId = await searchERC1155TokenId();
+            if (!tokenId) return message.error('master account balance not enough')
+            tx = await erc1155.safeTransferFrom(EOA.address, to, tokenId, 1, '0x');
+        } else {
+            tx = await wallet.sendTransaction({
+                to: to,
+                value:ethers.utils.parseEther(amount)
+            });
+        }
+
+        const receipt = await tx.wait();
+        message.open({
+            key: messageKey,
+            type: 'success',
+            content: `send success${tokenId ? ' and value has been automatically input' : ''}`,
+            duration: 2,
+        });
+        console.log(receipt);
+        callBack && callBack(tokenId);
+    };
 
     const updateConfig = (e:'bsc'|'testnet') => {
         signer.updateConfig({
@@ -429,7 +474,7 @@ const Dapp: React.FC = () => {
                         <h4>Send ERC20 Token</h4>
                         <Form
                             name="erc20"
-                            initialValues={{ 
+                            initialValues={{
                                 spender: '0x981C0774dFf527feBC014084b4d5300483812601',
                                 contractAddress: erc20ContractOptions[0].value
                             }}
@@ -512,6 +557,7 @@ const Dapp: React.FC = () => {
                             <Form.Item
                                 label="Contract address"
                                 name="contractAddress"
+                                initialValue={token.ERC721Address}
                                 rules={[{ required: true, message: 'Please input contract address!' }]}
                             >
                                 <Input />
@@ -560,6 +606,7 @@ const Dapp: React.FC = () => {
                             <Form.Item
                                 label="Contract address"
                                 name="contractAddress"
+                                initialValue={token.ERC1155Address}
                                 rules={[{ required: true, message: 'Please input contract address!' }]}
                             >
                                 <Input />
@@ -788,6 +835,48 @@ const Dapp: React.FC = () => {
                                 () => account ? disConnect() : connectByMetaMask()}>{
                                 account ? 'Disconnect' : 'Connect by Metamask'
                             }</Button>
+                        )
+                    }
+                    {
+                        networksValue === 'testnet' && account && (
+                            <>
+                                <Button
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        try {
+                                            await getAnyToken(account, '10', getEthBalance);
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    icon={<DownloadOutlined />}
+                                    style={{marginTop: 12, width: 240}}
+                                >ETH Token</Button>
+                                {/*<Button*/}
+                                {/*    onClick={async () => {*/}
+                                {/*        setLoading(true);*/}
+                                {/*        try {*/}
+                                {/*            await getAnyToken(account, '1', inputERC721, 'ERC721')*/}
+                                {/*        } finally {*/}
+                                {/*            setLoading(false);*/}
+                                {/*        }*/}
+                                {/*    }}*/}
+                                {/*    icon={<DownloadOutlined />}*/}
+                                {/*    style={{marginTop: 12, width: 240}}*/}
+                                {/*>ERC721 Token</Button>*/}
+                                {/*<Button*/}
+                                {/*    onClick={async () => {*/}
+                                {/*        setLoading(true);*/}
+                                {/*        try {*/}
+                                {/*            await getAnyToken(account, '1', inputERC1155, 'ERC1155')*/}
+                                {/*        } finally {*/}
+                                {/*            setLoading(false);*/}
+                                {/*        }*/}
+                                {/*    }}*/}
+                                {/*    icon={<DownloadOutlined />}*/}
+                                {/*    style={{marginTop: 12, width: 240}}*/}
+                                {/*>ERC1155 Token</Button>*/}
+                            </>
                         )
                     }
                     {

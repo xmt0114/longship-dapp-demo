@@ -850,13 +850,13 @@ const Dapp: React.FC = () => {
                     </Button>
                     }
                     {
-                        networksValue === 'testnet' && (
+                        networksValue === 'testnet' && account && (
                             <>
                                 <Button
                                     onClick={async () => {
                                         setLoading(true);
                                         try {
-                                            await getAnyToken(account.wallet_address, '1', getEthBalance);
+                                            await getAnyToken(account.wallet_address, '10', getEthBalance);
                                         } finally {
                                             setLoading(false);
                                         }
