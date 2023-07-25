@@ -6,7 +6,7 @@ const privateKey = '0x025877bbd1c534975e728255e3223a28cc239269f39831799755f62b82
 
 // mock server's signature
 export async function getServerSignature(op: any) {
-  const provider = new ethers.providers.JsonRpcProvider('https://wallet-demo.blockservice.io/rpc/testnet');
+  const provider = new ethers.providers.JsonRpcProvider('https://api-wallet-demo.blockservice.io/rpc/testnet');
   const contract = new ethers.Contract(paymaster.address, PaymasterAbi, provider);
 
   const hash = await contract.getHash(op, paymaster.validUntil, paymaster.validAfter);

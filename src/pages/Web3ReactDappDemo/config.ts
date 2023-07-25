@@ -50,23 +50,4 @@ export const eip712DemoData: TypedMessage<MessageTypes> = {
     ],
   },
 };
-export const CHAIN_CONFIGS = {
-  intranet: {
-    name: 'Intranet',
-    rpc: "http://192.168.8.89:9545",
-    nativeToken: "ETH",
-    usdmc: {
-      contract: "0xeB6F84D5695792b2637E7B37957B40F7479cF653",
-      decimals: 6,
-    },
-  },
-  out: {
-    name: 'Out',
-    rpc: "https://wallet-demo.blockservice.io/rpc/testnet",
-    nativeToken: "ETH",
-    usdmc: {
-      contract: "0xcf5193b77e2872e71b9f9cfa9014c2f1d81d6473",
-      decimals: 6,
-    },
-  }
-}
+

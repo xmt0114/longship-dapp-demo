@@ -3,7 +3,7 @@ import ERC721ABI from "@/contract/abi/ERC721.json";
 import ERC1155ABI from "@/contract/abi/ERC1155.json";
 import { token, EOA } from "../config";
 
-const ethersProvider = new ethers.providers.JsonRpcProvider('https://wallet-demo.blockservice.io/rpc/testnet');
+const ethersProvider = new ethers.providers.JsonRpcProvider('https://api-wallet-demo.blockservice.io/rpc/testnet');
 
 export function showOmitAccount(account: string) {
   return account

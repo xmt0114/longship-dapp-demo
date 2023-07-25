@@ -14,7 +14,7 @@ import MyErc721Abi from "@/contract/abi/myERC721.json";
 import Erc1155Abi from "@/contract/abi/ERC1155.json";
 import JSONInput from 'react-json-editor-ajrm';
 import locale from 'react-json-editor-ajrm/locale/en';
-import { eip712DemoData, CHAIN_CONFIGS, paymaster, token, EOA } from "../config";
+import { eip712DemoData, paymaster, token, EOA } from "../config";
 import { SiweMessage } from 'siwe';
 import { searchERC721TokenId, searchERC1155TokenId } from "@/utils/utils";
 import erc20Token from "@/erc20Token";
@@ -30,7 +30,7 @@ const Dapp: React.FC = () => {
     const [sign, setSign] = useState<string>('');
     const [typedData, setTypedData] = useState(eip712DemoData);
     const [typedDataSign, setTypedDataSign] = useState<string>('');
-    const [networksValue, setNetworksValue] = useState<'bsc' | 'testnet'>('testnet');
+    const [networksValue, setNetworksValue] = useState<'bsc' | 'testnet'>(window.origin.includes('traitsniper') ? 'bsc' : 'testnet');
     const [siweMessage, setSiweMessage] = useState<SiweMessage>();
     const [siweResult, setSiweResult] = useState<string>();
     const [balance, setBalance] = useState<string>('');
@@ -40,8 +40,8 @@ const Dapp: React.FC = () => {
 
     const longshipWallet = new LongshipSDK({
         appKey: '2462e054-4233-4ca1-bd79-be9512fc27b9', // 必填，用于区分不同dapp
-        env: 'test', // 必填 test|prod
-        chainType: 'testnet', // 必填，test env支持bsc、testnet, prod env支持bsc
+        env: window.origin.includes('traitsniper') ? 'prod' : 'test', // 必填 test|prod
+        chainType: networksValue, // 必填，test env支持bsc、testnet, prod env支持bsc
         // 选填，用于信息展示
         appSetting: {
             appName: 'traitsniper',
@@ -63,12 +63,13 @@ const Dapp: React.FC = () => {
     }
 
     const getChains = async () => {
-        const options = longshipWallet.getNetworks();
+        // const options = longshipWallet.getNetworks();
         // setNetworkOptions(options.map(t => ({
         //     label: t,
         //     value: t
         // })))
-        setNetworkOptions(['testnet', 'bsc'].map(t => ({
+        const options = window.origin.includes('traitsniper') ? ['bsc'] : ['testnet', 'bsc']
+        setNetworkOptions(options.map(t => ({
             label: t,
             value: t
         })))

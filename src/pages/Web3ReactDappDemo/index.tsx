@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react";
 import { EIP1271 } from '@traitsniper/wallet-sdk';
-import { Form, Input, AutoComplete, message, Modal } from "antd";
+import { Form, Input, AutoComplete, message, Modal, Select } from "antd";
 import { ethers } from "ethers";
 import { TransactionResponse } from '@ethersproject/providers';
 import styles from './index.less';
@@ -34,7 +34,7 @@ const Dapp: React.FC = () => {
     const [sign, setSign] = useState<string>('');
     const [typedData, setTypedData] = useState(eip712DemoData);
     const [typedDataSign, setTypedDataSign] = useState<string>('');
-    const [networksValue, setNetworksValue] = useState<'bsc' | 'testnet'>('testnet');
+    const [networksValue, setNetworksValue] = useState<'bsc' | 'testnet'>((localStorage.getItem('currentNet') as 'testnet' | 'bsc') || window.origin.includes('traitsniper') ? 'bsc' : 'testnet');
     const [siweMessage, setSiweMessage] = useState<SiweMessage>();
     const [siweResult, setSiweResult] = useState<string>();
     const [balance, setBalance] = useState<string>('');
@@ -42,6 +42,11 @@ const Dapp: React.FC = () => {
     const [USDMCBalance, setUSDMCBalance] = useState<string>('');
     const [networkOptions, setNetworkOptions] = useState<any[]>([]);
     const [erc20TokenList, setERC20TokenList] = useState(erc20Token[networksValue]);
+
+    const chainIdMap = {
+        testnet: 9527,
+        bsc: 97
+    }
 
     const erc20ContractOptions = useMemo(() => {
         return erc20Token[networksValue].map((token) => ({
@@ -53,8 +58,8 @@ const Dapp: React.FC = () => {
     const connect = async () => {
         const longshipConnector = new LongShipConnector({
             appKey: '2462e054-4233-4ca1-bd79-be9512fc27b9', // 必填，用于区分不同dapp
-            env: 'test', // 必填 test|prod
-            chainType: 'testnet', // 必填，test env支持bsc、testnet, prod env支持bsc
+            env: window.origin.includes('traitsniper') ? 'prod' : 'test', // 必填 test|prod
+            chainType: networksValue, // 必填，env为test支持bsc、testnet, env为prod支持bsc
             connectType: 'twitter', // 选填， 用于连接时直接通过Twitter登陆
             // 选填，用于信息展示
             appSetting: {
@@ -65,9 +70,11 @@ const Dapp: React.FC = () => {
         try {
             await activate(longshipConnector, () => {
                 localStorage.removeItem('currentConnect')
+                localStorage.removeItem('currentNet')
             }, true);
             setConnectBy('web3React');
             localStorage.setItem('currentConnect', 'web3React')
+            localStorage.setItem('currentNet', networksValue)
         } catch (e) {
             console.error(e);
         }
@@ -75,14 +82,17 @@ const Dapp: React.FC = () => {
 
     const connectByMetaMask = async () => {
         const injected = new InjectedConnector({
-            supportedChainIds: [9527]
+            supportedChainIds: [97, 9527],
+            chainId: chainIdMap[networksValue]
         });
         try {
             await activate(injected, () => {
                 localStorage.removeItem('currentConnect')
+                localStorage.removeItem('currentNet')
             }, true);
             setConnectBy('metamask');
             localStorage.setItem('currentConnect', 'metamask')
+            localStorage.setItem('currentNet', networksValue)
         } catch (e) {
             console.error(e);
         }
@@ -93,6 +103,7 @@ const Dapp: React.FC = () => {
         setSigner(null);
         setConnectBy('');
         localStorage.removeItem('currentConnect')
+        localStorage.removeItem('currentNet')
     }
 
     const [ERC721Form] = Form.useForm();
@@ -103,7 +114,8 @@ const Dapp: React.FC = () => {
     const [ethForm] = Form.useForm();
 
     const getChains = async () => {
-        setNetworkOptions(['testnet', 'bsc'].map(t => ({
+        const options = window.origin.includes('traitsniper') ? ['bsc'] : ['testnet', 'bsc']
+        setNetworkOptions(options.map(t => ({
             label: t,
             value: t
         })))
@@ -131,8 +143,9 @@ const Dapp: React.FC = () => {
         if (account) {
             getEthBalance();
         }
-        if(library && chainId && parseInt(chainId, 16) !== 9527) {
-            library.send('wallet_switchEthereumChain', [{ chainId: '0x' + (9527).toString(16) }]);
+        console.log('parseInt', chainId);
+        if(library && chainId !== chainIdMap[networksValue]) {
+            library.send('wallet_switchEthereumChain', [{ chainId: '0x' + (chainIdMap[networksValue]).toString(16) }]);
         }
     }, [account, library, chainId]);
 
@@ -391,12 +404,6 @@ const Dapp: React.FC = () => {
         });
         console.log(receipt);
         callBack && callBack(tokenId);
-    };
-
-    const updateConfig = (e:'bsc'|'testnet') => {
-        signer.updateConfig({
-            chainType: e,
-        });
     };
 
     const approveERC20 = async (e:any) => {
@@ -790,7 +797,18 @@ const Dapp: React.FC = () => {
                 </Content>
                 <Sider width={360} className={styles.contentRight} theme="light">
                     <h2>Networks</h2>
-                    <p>{networksValue}</p>
+                    {
+                        account ? <p>{networksValue}</p> :
+                            <Select style={{margin: '12px 0', width: 240}}
+                                    options={networkOptions}
+                                    defaultValue={'testnet'}
+                                    value={networksValue}
+                                    onChange={(e: 'bsc' | 'testnet') => {
+                                        setNetworksValue(e);
+                                        setERC20TokenList(erc20Token[e]);
+                                    }}
+                            />
+                    }
                     <h2>{account ? 'Wallet Information' : 'Login Methods'}</h2>
                     {
                         account && (
