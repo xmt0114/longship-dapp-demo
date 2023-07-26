@@ -7,6 +7,10 @@ export default defineConfig({
       path: "/web3React",
       component: "Web3ReactDappDemo",
     },
+    {
+      path: '/web3onboard',
+      component: 'Web3OnboardDemo',
+    }
   ],
   npmClient: 'npm',
   hash: true,

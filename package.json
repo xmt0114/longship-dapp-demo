@@ -11,7 +11,10 @@
   "dependencies": {
     "@ant-design/icons": "^5.1.4",
     "@traitsniper/wallet-sdk": "0.1.4",
+    "@traitsniper/web3-onboard": "^0.1.0",
     "@traitsniper/web3-react-v6-connector": "^0.1.0",
+    "@web3-onboard/injected-wallets": "^2.10.3",
+    "@web3-onboard/react": "^2.8.10",
     "@web3-react/abstract-connector": "^6.0.7",
     "@web3-react/core": "^6.1.9",
     "@web3-react/injected-connector": "^6.0.7",

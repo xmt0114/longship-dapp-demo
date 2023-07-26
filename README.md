@@ -6,6 +6,40 @@
   npm install
   npm run dev
 ```
+
+## web3-onboard 使用示例
+```
+import longshipModule from '@traitsniper/web3-onboard';
+import { init } from "@web3-onboard/react";
+
+const longship = longshipModule({
+    appKey: '2462e054-4233-4ca1-bd79-be9512fc27b9', // 必填，用于区分不同dapp
+    env: 'test', // 必填 test|prod
+    chainType: 'testnet', // 必填，env为test支持bsc、testnet, env为prod支持bsc
+    connectType: 'twitter', // 选填， 用于连接时直接通过Twitter登陆
+    // 选填，用于信息展示
+    appSetting: {
+      appName: 'traitsniper',
+      appIcon: 'https://wallet-demo.blockservice.io/static/img/coins/128x128/ETH.png'
+    }
+});
+
+init({
+    wallets: [longship],
+    chains: [
+      {
+        id: '0x2537', // 9527
+      }
+    ],
+    appMetadata: {
+      name: 'Web3-Onboard Demo',
+      icon: '<svg>App Icon</svg>',
+      description: 'A demo of Web3-Onboard.'
+    }
+});
+
+```
+
 ## web3-react-v6 使用示例
 ### 初始化
 ```
